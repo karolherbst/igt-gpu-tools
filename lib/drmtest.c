@@ -245,6 +245,47 @@ static int modprobe(const char *driver)
 	return igt_kmod_load(driver, "");
 }
 
+static int __drm_open_device(const char *device, int chipset)
+{
+	int fd;
+
+	fd = open(device, O_RDWR);
+	if (fd == -1)
+		return fd;
+
+	if (chipset & DRIVER_INTEL && is_i915_device(fd) &&
+	    has_known_intel_chipset(fd))
+		return fd;
+
+	if (chipset & DRIVER_VC4 &&
+	    is_vc4_device(fd))
+		return fd;
+
+	if (chipset & DRIVER_VGEM &&
+	    is_vgem_device(fd))
+		return fd;
+
+	if (chipset & DRIVER_VIRTIO &&
+	    is_virtio_device(fd))
+		return fd;
+
+	if (chipset & DRIVER_AMDGPU && is_amd_device(fd))
+		return fd;
+
+	if (chipset & DRIVER_NOUVEAU && is_nouveau_device(fd))
+		return fd;
+
+	if (chipset & DRIVER_TEGRA && is_tegra_device(fd))
+		return fd;
+
+	/* Only VGEM-specific tests should be run on VGEM */
+	if (chipset == DRIVER_ANY && !is_vgem_device(fd))
+		return fd;
+
+	close(fd);
+	return -1;
+}
+
 /**
  * __drm_open_driver:
  * @chipset: OR'd flags for each chipset to search, eg. #DRIVER_INTEL
@@ -256,48 +297,25 @@ static int modprobe(const char *driver)
  */
 int __drm_open_driver(int chipset)
 {
+	char *name = getenv("IGT_DEVICE");
+
+	if (name)
+		return __drm_open_device(name, chipset);
+
 	if (chipset & DRIVER_VGEM)
 		modprobe("vgem");
 
 	for (int i = 0; i < 16; i++) {
-		char name[80];
-		int fd;
+		int fd, ret;
 
-		sprintf(name, "/dev/dri/card%u", i);
-		fd = open(name, O_RDWR);
-		if (fd == -1)
-			continue;
+		ret = asprintf(&name, "/dev/dri/card%u", i);
+		igt_assert(ret != -1);
 
-		if (chipset & DRIVER_INTEL && is_i915_device(fd) &&
-		    has_known_intel_chipset(fd))
+		fd = __drm_open_device(name, chipset);
+		free(name);
+
+		if (fd >= 0)
 			return fd;
-
-		if (chipset & DRIVER_VC4 &&
-		    is_vc4_device(fd))
-			return fd;
-
-		if (chipset & DRIVER_VGEM &&
-		    is_vgem_device(fd))
-			return fd;
-
-		if (chipset & DRIVER_VIRTIO &&
-		    is_virtio_device(fd))
-			return fd;
-
-		if (chipset & DRIVER_AMDGPU && is_amd_device(fd))
-			return fd;
-
-		if (chipset & DRIVER_NOUVEAU && is_nouveau_device(fd))
-			return fd;
-
-		if (chipset & DRIVER_TEGRA && is_tegra_device(fd))
-			return fd;
-
-		/* Only VGEM-specific tests should be run on VGEM */
-		if (chipset == DRIVER_ANY && !is_vgem_device(fd))
-			return fd;
-
-		close(fd);
 	}
 
 	return -1;
@@ -305,8 +323,11 @@ int __drm_open_driver(int chipset)
 
 static int __drm_open_driver_render(int chipset)
 {
-	char *name;
+	char *name = getenv("IGT_DEVICE");
 	int i, fd;
+
+	if (name)
+		return __drm_open_device(name, chipset);
 
 	for (i = 128; i < (128 + 16); i++) {
 		int ret;
