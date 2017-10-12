@@ -130,6 +130,11 @@ static bool is_nouveau_device(int fd)
 	return __is_device(fd, "nouveau");
 }
 
+static bool is_tegra_device(int fd)
+{
+	return __is_device(fd, "tegra");
+}
+
 static bool has_known_intel_chipset(int fd)
 {
 	struct drm_i915_getparam gp;
@@ -285,6 +290,9 @@ int __drm_open_driver(int chipset)
 		if (chipset & DRIVER_NOUVEAU && is_nouveau_device(fd))
 			return fd;
 
+		if (chipset & DRIVER_TEGRA && is_tegra_device(fd))
+			return fd;
+
 		/* Only VGEM-specific tests should be run on VGEM */
 		if (chipset == DRIVER_ANY && !is_vgem_device(fd))
 			return fd;
@@ -362,6 +370,8 @@ static const char *chipset_to_str(int chipset)
 		return "amdgpu";
 	case DRIVER_NOUVEAU:
 		return "nouveau";
+	case DRIVER_TEGRA:
+		return "tegra";
 	case DRIVER_ANY:
 		return "any";
 	default:
