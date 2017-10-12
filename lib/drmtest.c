@@ -80,7 +80,7 @@ static int __get_drm_device_name(int fd, char *name)
 	drm_version_t version;
 
 	memset(&version, 0, sizeof(version));
-	version.name_len = 4;
+	version.name_len = 8;
 	version.name = name;
 
 	if (!drmIoctl(fd, DRM_IOCTL_VERSION, &version)){
@@ -92,7 +92,7 @@ static int __get_drm_device_name(int fd, char *name)
 
 static bool __is_device(int fd, const char *expect)
 {
-	char name[5] = "";
+	char name[9] = "";
 
 	if (__get_drm_device_name(fd, name))
 		return false;
@@ -123,6 +123,11 @@ static bool is_virtio_device(int fd)
 static bool is_amd_device(int fd)
 {
 	return __is_device(fd, "amdg");
+}
+
+static bool is_nouveau_device(int fd)
+{
+	return __is_device(fd, "nouveau");
 }
 
 static bool has_known_intel_chipset(int fd)
@@ -277,6 +282,9 @@ int __drm_open_driver(int chipset)
 		if (chipset & DRIVER_AMDGPU && is_amd_device(fd))
 			return fd;
 
+		if (chipset & DRIVER_NOUVEAU && is_nouveau_device(fd))
+			return fd;
+
 		/* Only VGEM-specific tests should be run on VGEM */
 		if (chipset == DRIVER_ANY && !is_vgem_device(fd))
 			return fd;
@@ -352,6 +360,8 @@ static const char *chipset_to_str(int chipset)
 		return "virtio";
 	case DRIVER_AMDGPU:
 		return "amdgpu";
+	case DRIVER_NOUVEAU:
+		return "nouveau";
 	case DRIVER_ANY:
 		return "any";
 	default:
